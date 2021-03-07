@@ -53,12 +53,59 @@ id
 
 #predefined tuple for Tokens
 Token = namedtuple('Token', ['kind', 'lexeme'])
-
+class AST:
+  def __init__(self, tag, kids, value = None, id = None):
+    self.tag = tag
+    self.kids = kids
+    if(tag == 'INT' and value != None):
+      self.value = value
+    if(tag == 'ID' and value != None):
+      self.id = id
 
 def parse(text):
-    return
+    #checks if the lookahead matches the kind of a current token
+    def check(kind): return lookahead.kind == kind
+    
+    #advances the lookahead
+    def match(kind):
+      nonlocal lookahead
+      if(lookahead.kind == kind):
+        lookahead = nextToken()
+      else:
+        print("Expecting ", kind, "at ", lookahead.lexeme)
+        sys.exit(1)
+
+    #delivers the next token
+    def nextToken():
+      nonlocal index 
+      if(index >= len(tokens)): #if we ran out of tokens
+        return Token('EOF', '<EOF>') #end of file
+      else:
+        tok = tokens[index]
+        index += 1
+        return tok
+
+    #TODO recursive parsing functions here: 
+    #top level
+    def program():
+      asts = [] #list of ASTs so far
+      while (not check('EOF')):
+        asts.append(expr())
+        
+    def expr():
+
+    #parse setup
+    tokens = scan(text)
+    index = 0
+    lookahead = nextToken()
+    value = program()
+    if(not check('EOF')): #check the current token, if it's not kind EOF
+      print('expecting <EOF>, got', lookahead.lexeme)
+      sys.exit(1)
+    return value
 
 def scan(text):
+    #determines what kind of char(s) we scan and assigns them a kind
     def next_match(text):
         m = re.compile(r'^(\s+)|(#.*)').match(text)
         if(m): return (m, None) #whitespace
@@ -72,6 +119,7 @@ def scan(text):
         if(m): return (m, 'ID') #id matching
         m = re.compile(r'^(\()|(\))|(\?)|(\:)|(\<)|(\>)|(\+)|(\-)|(\*)|(\/)').match(text)
         if(m): return (m, m.group()) #single-char operators
+
         m = re.compile(r'^.').match(text) #will match anything remaining
         print("\n\t\t!Non-standard token found and created.\n")
         if (m): return (m, m.group()) #but we shouldn't get here
