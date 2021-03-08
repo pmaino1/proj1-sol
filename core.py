@@ -57,12 +57,22 @@ class AST:
   def __init__(self, tag, kids, value = None, id = None):
     self.tag = tag
     self.kids = kids
-    if(tag == 'INT' and value != None):
-      self.value = value
-    if(tag == 'ID' and value != None):
-      self.id = id
+    self.value = value
+    self.id = id
 
-def parse(text):
+  def __str__(self):
+    map
+    ret = '{"tag":"' +self.tag+ '","kids":'+ str(self.kids)
+    if(self.value):
+      ret = ret + ',"value":' +self.value 
+    if(self.id):
+      ret = ret + ',"id":"' +self.id+ '"'
+    ret += '}'
+    return ret
+  def __repr__(self):
+    return self.__str__()
+
+def parse(tokens):
     #checks if the lookahead matches the kind of a current token
     def check(kind): return lookahead.kind == kind
     
@@ -91,16 +101,62 @@ def parse(text):
       asts = [] #list of ASTs so far
       while (not check('EOF')):
         asts.append(expr())
-        
+      return asts
+
     def expr():
+      return add_expr()
+    
+    def add_expr():
+      expr1 = mult_expr()
+      while(check('+') or check('-')):
+        tok = lookahead #will contain + or - token
+        match(tok.kind)
+        expr2 = mult_expr()
+        kids = []
+        kids.append(expr1)
+        kids.append(expr2)
+        expr1 = AST(tok.kind, kids)
+      return expr1
+
+    def mult_expr():
+      expr1 = unaryminus_expr()
+      while(check('*') or check('/')):
+        tok = lookahead #will contain * or / token
+        match(tok.kind)
+        expr2 = unaryminus_expr()
+        kids = []
+        kids.append(expr1)
+        kids.append(expr2)
+        expr1 = AST(tok.kind, kids)
+      return expr1
+
+    def unaryminus_expr():
+      tok = lookahead
+      if(check('-')):
+        match('-')
+        kids = []
+        kids.append(bottom_expr())
+        return AST(tok.kind, kids)
+      return bottom_expr()
+
+    def bottom_expr():
+      tok = lookahead
+      if(check('INT')):
+        match('INT')
+        return AST(tok.kind,[],value=tok.lexeme)
+      if(check('ID')):
+        match('ID')
+        return AST(tok.kind,[],id=tok.lexeme)
+      return None
+      
+    
 
     #parse setup
-    tokens = scan(text)
     index = 0
     lookahead = nextToken()
     value = program()
     if(not check('EOF')): #check the current token, if it's not kind EOF
-      print('expecting <EOF>, got', lookahead.lexeme)
+      print('expecting <EOF>, got ', lookahead.lexeme)
       sys.exit(1)
     return value
 
@@ -135,8 +191,13 @@ def scan(text):
 
 def main():
     #implement file reading and or standard input shit
-    input = "bee1 123 + 6 <= ?\ndef #this is a comment\nyeah"
+    input = ' \
+      123\nHello\nb32\n \
+      a * 123\n12 / -b\n \
+      a + b*123\n12*-2 - b*4 + c/3\n'
 
     print("---\n\tInput: \n", input, "\n")
-    print("Tokens produced: ",scan(input))
+    tokens = scan(input)
+    print("Tokens produced: ",tokens)
+    print("ASTs produced: ",parse(tokens))
 main()
