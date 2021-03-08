@@ -95,17 +95,109 @@ def parse(tokens):
         index += 1
         return tok
 
-    #TODO recursive parsing functions here: 
+    #recursive parsing functions start here: 
     #top level
     def program():
       asts = [] #list of ASTs so far
       while (not check('EOF')):
-        asts.append(expr())
+        if(check('DEF')):
+          asts.append(define())
+        else:
+          asts.append(expr())
       return asts
 
+    def define():
+      if(check('DEF')):
+        tok = lookahead #will contain DEF token
+        match(tok.kind)
+
+        id_ast = None
+        if(check('ID')):
+          tok = lookahead #will contain ID token
+          match('ID')
+          id_ast = AST(tok.kind,[],id=tok.lexeme)
+        else:
+          print("Funtion definition error, expecting ID.")
+          sys.exit(1)
+
+        formal_ast = None
+        if(check('(')):
+          tok = lookahead #will contain ID token
+          match('(')
+          formal_ast = formals()
+        else:
+          print("Funtion definition error, expecting '('.")
+          sys.exit(1)
+
+        expr_ast = expr()
+
+        return AST('DEF', [id_ast,formal_ast,expr_ast])
+
+    def formals():
+      ids = []
+      if(check(')')): #empty formals case
+        tok = lookahead
+        match(tok.kind)
+        return AST('FORMALS', [])
+      
+      if(check('ID')):
+          tok = lookahead #will contain ID token
+          match('ID')
+          ids.append(AST(tok.kind,[],id=tok.lexeme))
+      while(check(',')):
+        tok = lookahead #will contain , token
+        match(tok.kind)
+        if(check('ID')):
+          tok = lookahead #will contain ID token
+          match('ID')
+          ids.append(AST(tok.kind,[],id=tok.lexeme))
+        else:
+          print("Funtion definition error, expecting ID.")
+          sys.exit(1)
+
+      if(check(')')): 
+        tok = lookahead
+        match(tok.kind)
+      else:
+        print("Funtion definition error, expecting ')'.")
+        sys.exit(1)
+      return AST('FORMALS', ids)
+
     def expr():
-      return add_expr()
+      return cond_expr()
     
+    def cond_expr():
+      expr1 = relate_expr()
+      if(check('?')):
+        tok = lookahead #will contain ? token
+        match(tok.kind)
+        expr2 = relate_expr()
+        if(check(':')):
+          tok = lookahead #will contain : token
+          match(tok.kind)
+        else:
+          print("Missing ':' for conditional.")
+          sys.exit(1)
+        expr3 = relate_expr()
+        kids = []
+        kids.append(expr1)
+        kids.append(expr2)
+        kids.append(expr3)
+        expr1 = AST('?:',kids)
+      return expr1
+
+    def relate_expr():
+      expr1 = add_expr()
+      if(check('<') or check('<=') or check('>') or check('>=') or check('==') or check('!=')):
+        tok = lookahead #will contain relational operator token
+        match(tok.kind)
+        expr2 = add_expr()
+        kids = []
+        kids.append(expr1)
+        kids.append(expr2)
+        expr1 = AST(tok.kind, kids)
+      return expr1
+
     def add_expr():
       expr1 = mult_expr()
       while(check('+') or check('-')):
@@ -135,7 +227,7 @@ def parse(tokens):
       if(check('-')):
         match('-')
         kids = []
-        kids.append(bottom_expr())
+        kids.append(unaryminus_expr())
         return AST(tok.kind, kids)
       return bottom_expr()
 
@@ -146,10 +238,45 @@ def parse(tokens):
         return AST(tok.kind,[],value=tok.lexeme)
       if(check('ID')):
         match('ID')
-        return AST(tok.kind,[],id=tok.lexeme)
+        exp = AST(tok.kind,[],id=tok.lexeme)
+        #actuals check
+        if(check('(')):
+          tok = lookahead #will contain ( token
+          match(tok.kind)
+          exp = AST('APP', [exp, actuals()])
+        return exp
+      if(check('(')):
+        tok = lookahead #will contain (
+        match(tok.kind)
+        exp = expr()
+        if(check(')')):
+          tok = lookahead #will contain )
+          match(tok.kind)
+        else:
+          print("Missing closing parentheses.")
+          sys.exit(1)
+        return exp
+      print("Token parsing error: ",tok, ": token not recognized.")
+      sys.exit(1)
       return None
       
-    
+    def actuals():
+      if(check(')')): #empty actuals case
+        tok = lookahead
+        match(tok.kind)
+        return AST('ACTUALS',[])
+      exps = []
+      exps.append(expr())     
+      while(check(',')):
+        tok = lookahead
+        match(tok.kind)
+        exps.append(expr())
+      if(check(')')):
+        tok = lookahead
+        match(tok.kind) 
+      else:
+        print('Expecting closing parentheses for actual, got' + lookahead.kind)
+      return AST('ACTUALS', exps)
 
     #parse setup
     index = 0
@@ -194,7 +321,13 @@ def main():
     input = ' \
       123\nHello\nb32\n \
       a * 123\n12 / -b\n \
-      a + b*123\n12*-2 - b*4 + c/3\n'
+      a + b*123\n12*-2 - b*4 + c/3\n \
+      a > b + 1\n13 <= b*2\n \
+      (a - 2) * 3\n4 / (b + -c + d)\n \
+      (-- 123)\n \
+      (a < b ? a : b + c)\n \
+      f()\nf(a + b, -c, 3*d)\n \
+      def f(a, b) a + b\ndef MAGIC() 7\n'
 
     print("---\n\tInput: \n", input, "\n")
     tokens = scan(input)
